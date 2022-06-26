@@ -1,0 +1,45 @@
+#!/usr/bin/env php
+<?php
+
+// TODO: dynamic entry
+$currentState = '202206-nav-depuis-tiobairt';
+
+date_default_timezone_set('UTC');
+
+$dir = '/home/guillaume/logbook/' . $currentState . '/';
+if (!is_dir($dir)) {
+    mkdir($dir);
+}
+
+$info = json_decode(
+    file_get_contents('http://openplotter:3000/signalk/v1/api/vessels/urn:mrn:imo:mmsi:227727000/navigation')
+, true);
+
+$entry = [];
+$entry['ts'] = time();
+$entry['pos'] = $info['position']['value'] ?? 'unk';
+$entry['sog'] = $info['speedOverGround']['value'] ?? null;
+$entry['cog'] = $info['courseOverGroundTrue']['values']['ais.AI']['value'] ?? null;
+
+$args = $_SERVER['argv'];
+array_shift($args);
+$entry['event']['msg'] = $args ? implode(' ', $args) : trim(readline('Event : '));
+
+switch(substr($entry['event']['msg'], 0, 2)) {
+    case 'e ' :
+        $entry['event']['type'] = 'engine';
+        $entry['event']['msg'] = trim(substr($entry['event']['msg'], 2));
+        break;
+    case 'w ' :
+        $entry['event']['type'] = 'work';
+        $entry['event']['msg'] = trim(substr($entry['event']['msg'], 2));
+        break;
+    default :
+        $entry['event']['type'] = 'logbook';
+        break;
+}
+
+$file = $dir . date('Y-m-d_H-i-s_', $entry['ts']) . $entry['event']['type'] . '.json';
+file_put_contents($file, json_encode($entry));
+echo "\n  [" . $entry['event']['type'] . '] ' . $entry['event']['msg'] . "\n\n";
+echo '  Entry saved in ' . $file . "\n\n";

@@ -1,0 +1,62 @@
+#!/usr/bin/env php
+<?php
+
+date_default_timezone_set('UTC');
+
+define('WORKDIR', '/home/guillaume/logbook');
+$args = $_SERVER['argv'];
+array_shift($args);
+$state = trim($args[0] ?? '');
+if ($state === '') {
+    echo "\nAvailable states :\n\n";
+    passthru('ls ' . escapeshellarg(WORKDIR));
+    die("\nUsage : btm <state>\n\n");
+}
+
+$dir = WORKDIR . '/' . $state;
+if (!is_dir($dir)) {
+    mkdir($dir);
+}
+
+exec('ls ' . escapeshellarg($dir), $files);
+sort($files);
+
+$logbook = '';
+$currentDay = '';
+$legend = "|Heure (UTC)|Position|Vit.|Dir.|Message|\n|:-:|-:|-:|-:|:-|";
+
+function degToDms($dec): string {
+    [$deg, $min] = explode(".", (string) $dec);
+    return sprintf('%d°%\'0.4f', abs($deg), round(('0.' . $min) * 60, 4));
+}
+
+foreach ($files as $file) {
+    $data = json_decode(file_get_contents($dir . '/' . $file), true);
+    $day = date('d/m/Y', $data['ts']);
+    $logbook .= $day === $currentDay ? '' : "\n\n**$day**\n\n" . $legend;
+    $currentDay = $day;
+    $sog = isset($data['sog']) ? round(1.94384 * $data['sog'], 1) . 'kt' : '?';
+    $cog = isset($data['cog']) ? round(rad2deg((float) $data['cog']), 1) . '°' : '?';
+    $intro = '|' . date('H:i:s', $data['ts']) . '|'
+        . degToDms($data['pos']['latitude']) . 'N '
+        . degToDms($data['pos']['longitude']) . 'W|'
+        . $sog . '|' . $cog . '|';
+    switch ($data['event']['type'] ?? 'unk') {
+        case 'logbook' :
+            echo '[LOG] ' . substr($data['event']['msg'], 0, 70) . "...\n";
+            $logbook .= "\n" . $intro . trim($data['event']['msg']) . '|';
+            break;
+        case 'engine' :
+            echo '[ENG] ' . substr($data['event']['msg'], 0, 70) . "...\n";
+            $logbook .= "\n" . $intro . '**Moteur** : ' . trim($data['event']['msg']) . '|'; // To finish
+            break;
+        case 'work' :
+            echo '[WRK] ' . substr($data['event']['msg'], 0, 70) . "...\n";
+            $logbook .= "\n" . $intro . '**Travaux** : ' . trim($data['event']['msg']) . '|'; // To finish
+            break;
+        default :
+            echo '[ERR] Unknown type ' . ($data['event']['type'] ?? 'unk') . "\n";
+    }
+}
+
+echo "\n\n" . trim($logbook) . "\n\n";
