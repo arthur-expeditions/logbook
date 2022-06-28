@@ -1,12 +1,12 @@
 #!/usr/bin/env php
 <?php
 
-// TODO: dynamic entry
-$currentState = '202206-nav-depuis-tiobairt';
+define('LOGBOOK_DIR', posix_getpwuid(posix_getuid())['dir'] . '/logbook/');
 
 date_default_timezone_set('UTC');
 
-$dir = '/home/guillaume/logbook/' . $currentState . '/';
+$currentState = file_get_contents(LOGBOOK_DIR . '.current') ?: 'unknown';
+$dir = LOGBOOK_DIR . $currentState . '/';
 if (!is_dir($dir)) {
     mkdir($dir);
 }
